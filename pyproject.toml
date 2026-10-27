@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+[project]
+name = "sentriig"
+version = "0.1.0"
+description = "Self-hosted single-server Telegram monitor"
+requires-python = ">=3.10"
+[project.scripts]
+sentriig = "sentriig.cli:main"
+[tool.setuptools.packages.find]
+include = ["sentriig*"]
