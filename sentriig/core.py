@@ -213,7 +213,31 @@ def handle(db, c, upd):
         send(c, "Services:\n" + ("\n".join(f"• {s}: {service_status(s)}" for s in c.get("services", [])) or "No services"), home())
     elif command == "domains":
         rows = db.execute("SELECT name,enabled FROM domains ORDER BY name LIMIT 80").fetchall()
-        send(c, "Domains:\n" + ("\n".join(f"• {n} {'✅' if en else '⏸'}" for n, en in rows) or "None. Scan first."), home())
+        if not rows:
+            send(c, "No domains. Select Scan domains first.", home())
+        else:
+            keys = [[(name[:45] + (" 🔕" if name in c.get("muted_domains", []) else ""), "domain:" + str(i))]
+                    for i, (name, active) in enumerate(rows)]
+            send(c, "Choose a domain for errors and notification settings:",
+                 keyboard(keys + [[("⬅ Menu", "menu")]]))
+    elif command.startswith("domain:") or command.startswith("mute:"):
+        try: index = int(command.partition(":")[2])
+        except ValueError: return
+        rows = db.execute("SELECT name FROM domains ORDER BY name LIMIT 80").fetchall()
+        if not 0 <= index < len(rows): return
+        domain = rows[index][0]
+        if command.startswith("mute:"):
+            muted = set(c.get("muted_domains", []))
+            if domain in muted: muted.remove(domain)
+            else: muted.add(domain)
+            c["muted_domains"] = sorted(muted)
+            save(c)
+        history = db.execute("SELECT severity,service,message FROM events WHERE domain=? ORDER BY id DESC LIMIT 5", (domain,)).fetchall()
+        details = "\n\n".join(f"[{sev}] {svc}: {message[:220]}" for sev, svc, message in history) or "No recent events."
+        paused = domain in c.get("muted_domains", [])
+        send(c, f"Domain: {domain}\nNotifications: {'MUTED' if paused else 'ACTIVE'}\n\n{details}",
+             keyboard([[("🔔 Unmute" if paused else "🔕 Mute", "mute:" + str(index))],
+                       [("⬅ Domains", "domains"), ("🏠 Menu", "menu")]]))
     elif command == "events":
         rows = db.execute("SELECT severity,domain,service,message FROM events ORDER BY id DESC LIMIT 8").fetchall()
         send(c, "Recent events:\n" + ("\n\n".join(f"[{s}] {d or 'server'}/{unit}: {msg[:220]}" for s,d,unit,msg in rows) or "None"), home())
