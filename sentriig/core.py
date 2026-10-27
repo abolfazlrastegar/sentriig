@@ -115,12 +115,17 @@ def poll_services(db, c):
             db.execute("INSERT OR REPLACE INTO kv VALUES(?,?)", (key, status))
             db.commit()
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        # Never follow a potentially untrusted redirect from local virtual hosts.
+        return None
+
 def poll_domains(db, c):
     for (name,) in db.execute("SELECT name FROM domains WHERE enabled=1").fetchall():
         ok, detail = False, ""
         req = urllib.request.Request("http://127.0.0.1/", headers={"Host": name, "User-Agent": "Sentriig/0.1"})
         try:
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.build_opener(NoRedirect).open(req, timeout=5) as resp:
                 ok, detail = resp.status < 500, "HTTP " + str(resp.status)
         except urllib.error.HTTPError as exc:
             ok, detail = exc.code < 500, "HTTP " + str(exc.code)
@@ -168,7 +173,8 @@ def keyboard(rows):
 def home():
     return keyboard([[("🌐 Domains", "domains"), ("⚙️ Services", "services")],
                      [("🚨 Events", "events"), ("🔔 Alerts", "alerts")],
-                     [("🔎 Scan domains", "scan"), ("📊 Status", "status")]])
+                     [("🔎 Scan domains", "scan"), ("📊 Status", "status")],
+                     [("🔎 Scan services", "scan_services")]])
 
 def authorized(c, msg):
     return bool(c.get("chat_id") and int(msg.get("chat", {}).get("id", 0)) == int(c["chat_id"]) and
@@ -213,10 +219,20 @@ def handle(db, c, upd):
         send(c, "Recent events:\n" + ("\n\n".join(f"[{s}] {d or 'server'}/{unit}: {msg[:220]}" for s,d,unit,msg in rows) or "None"), home())
     elif command == "scan":
         names = discover_domains()
-        for name in names:
-            db.execute("INSERT OR IGNORE INTO domains(name) VALUES(?)", (name,))
+        old = {row[0] for row in db.execute("SELECT name FROM domains")}
+        for name in names: db.execute("INSERT OR IGNORE INTO domains(name) VALUES(?)", (name,))
         db.commit()
-        send(c, f"Scan finished. Found {len(names)} domains; new domains registered.", home())
+        added = [n for n in names if n not in old]
+        send(c, f"Domain scan finished. Total: {len(names)}. New: {len(added)}." +
+             ("\\n" + "\\n".join(added[:20]) if added else ""), home())
+    elif command == "scan_services":
+        before = set(c.get("services", []))
+        fresh = discover_services()
+        c["services"] = sorted(set(fresh) | before)
+        save(c)
+        new = sorted(set(fresh) - before)
+        send(c, f"Service scan finished. Monitored: {len(c['services'])}. New: {len(new)}." +
+             ("\\n" + "\\n".join(new) if new else ""), home())
     elif command == "alerts":
         flags = c.get("notifications", {})
         rows = [[(f"{x}: {'ON' if flags.get(x) else 'OFF'}", "toggle:" + x)] for x in ("CRITICAL","ERROR","WARNING","INFO","RECOVERY")]
