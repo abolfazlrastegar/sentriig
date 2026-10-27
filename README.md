@@ -31,9 +31,9 @@ Use `sudo sentriig <command>` for systemd operations. Use `sudo -u sentriig -H s
 
 ## Telegram
 
-/start opens a menu for **Scan domains**, **Domains**, **Services**, **Events**, **Alerts**, and **Status**.
+/start opens a menu for **Scan domains**, **Domains**, **Services**, **Events**, **Alerts**, **Scan services**, and **Status**.
 
-Scanning configurations happens **only when requested via Telegram**; runtime health checks remain periodic. Nginx domain mapping is best effort based on static `server_name` directives. It records recent errors by severity and domain where identifiable; service-wide failures are not misattributed to a single website. ERROR and CRITICAL alerts are on by default, RECOVERY on; INFO and WARNING notification delivery are initially off (events may still be saved). No arbitrary server commands can be run from Telegram.
+Scanning Nginx domains and discovering additional services happens **only when requested via Telegram**; runtime health checks remain periodic. Nginx domain mapping is best effort based on static `server_name` directives. It records recent errors by severity and domain where identifiable; service-wide failures are not misattributed to a single website. ERROR and CRITICAL alerts are on by default, RECOVERY on; INFO and WARNING notification delivery are initially off (events may still be saved). A domain can be selected to view its recent matching errors and mute/unmute alerts for that domain. No arbitrary server commands can be run from Telegram.
 
 ## Monitoring and limitations
 
